@@ -1,0 +1,34 @@
+{
+  "_aciklama": "Her ürün için: id (benzersiz), ad (görünen isim), hedef_fiyat (bu fiyatın altına inince özel uyarı), kaynaklar listesi. Her kaynak bir site + o siteye özel URL demektir.",
+
+  "_telegram_notu": "GitHub Actions kullanıyorsanız bot_token/chat_id'yi buraya YAZMAYIN — repo Secrets üzerinden (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) otomatik gelir. Aşağıdaki alanlar sadece bilgisayarınızda elle çalıştırırken kullanılır.",
+  "telegram": {
+    "bot_token": "BURAYA_BOT_TOKEN",
+    "chat_id": "BURAYA_CHAT_ID"
+  },
+
+  "urunler": [
+    {
+      "id": "razer_blackshark_v3_pro",
+      "ad": "Razer BlackShark V3 Pro",
+      "hedef_fiyat": 12500,
+      "kaynaklar": [
+        {
+          "site": "akakce",
+          "tip": "liste_min",
+          "url": "https://www.akakce.com/kulaklik/en-ucuz-razer-blackshark-v3-pro-7-1-usb-kablolu-kablosuz-kulak-ustu-oyuncu-kulakligi-fiyati,1168802361.html"
+        },
+        {
+          "site": "cimri",
+          "tip": "liste_min",
+          "url": "https://www.cimri.com/kulaklik/en-ucuz-razer-blackshark-v3-pro-siyah-kulaklik-fiyatlari,2578210331"
+        },
+        {
+          "site": "tebilon",
+          "tip": "tek_urun",
+          "url": "https://www.tebilon.com/gaming-kulaklik/arama/?g=sT&f=n&a=razer+blackshark+v3+pro"
+        }
+      ]
+    }
+  ]
+}
