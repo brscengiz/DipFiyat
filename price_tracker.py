@@ -10,11 +10,12 @@ Telegram'a bildirim gönderir.
 
 Kullanım:
   python price_tracker.py                 -> tek seferlik kontrol
-  (cron ile örn. her 2 saatte bir çalıştırılması önerilir)
+  (cron ile örn. her 3 saatte bir çalıştırılması önerilir)
 
 Not: Bu script, siteyi normal bir tarayıcı gibi ziyaret eder (requests + BeautifulSoup).
-Site yapıları zaman zaman değişebilir; fiyat bulunamazsa script hatayı loglar ve
-diğer ürünlere/kaynaklara devam eder, tüm çalışmayı durdurmaz.
+SCRAPER_API_KEY ortam değişkeni tanımlıysa istekler ScraperAPI proxy'si üzerinden
+yapılır (veri merkezi IP engelini aşmak için). Site yapıları zaman zaman değişebilir;
+fiyat bulunamazsa script hatayı loglar ve diğer kaynaklara devam eder.
 """
 
 import json
@@ -23,9 +24,15 @@ import re
 import sys
 import time
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
+
+# ScraperAPI gibi bir "scraping proxy" servisinin API key'i (opsiyonel).
+# Tanımlıysa istekler bu servis üzerinden yapılır (veri merkezi IP engelini aşmak için).
+# Tanımlı değilse normal doğrudan istek yapılır.
+SCRAPER_API_KEY = os.environ.get("SCRAPER_API_KEY", "")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -69,7 +76,12 @@ def parse_tl_to_float(raw: str) -> float:
 
 def fetch_html(url: str) -> str | None:
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=20)
+        if SCRAPER_API_KEY:
+            # ScraperAPI proxy'si üzerinden çek (veri merkezi IP engelini aşmak için).
+            proxy_url = f"http://api.scraperapi.com/?api_key={SCRAPER_API_KEY}&url={quote(url, safe='')}"
+            resp = requests.get(proxy_url, timeout=60)
+        else:
+            resp = requests.get(url, headers=HEADERS, timeout=20)
         resp.raise_for_status()
         return resp.text
     except requests.RequestException as e:
@@ -84,7 +96,6 @@ def extract_prices(html: str) -> list[float]:
     for m in matches:
         try:
             val = parse_tl_to_float(m)
-            # Anlamsız çok düşük/çok yüksek değerleri ele (kargo ücreti vs. olabilir)
             if 50 <= val <= 1_000_000:
                 prices.append(val)
         except ValueError:
@@ -179,7 +190,6 @@ def check_product(product: dict, history: dict) -> list[str]:
 
     best_site, best_price, best_url = min(results, key=lambda r: r[1])
 
-    # Geçmiş kayıtları güncelle
     product_history = history.setdefault(product_id, [])
     all_time_min_before = min((h["fiyat"] for h in product_history), default=None)
 
@@ -221,7 +231,6 @@ def main():
 
     history = load_json(HISTORY_PATH, {})
 
-    # Önce ortam değişkenlerine bak (GitHub Actions / Secrets için), yoksa config.json'a düş.
     tg = config.get("telegram", {})
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", tg.get("bot_token", ""))
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", tg.get("chat_id", ""))
