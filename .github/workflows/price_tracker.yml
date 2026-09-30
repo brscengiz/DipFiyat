@@ -2,9 +2,13 @@ name: DipFiyat - Fiyat Takip Botu
 
 on:
   schedule:
-    - cron: "0 */2 * * *"
-  workflow_dispatch: {}
+    # Her 3 saatte bir çalışır (UTC saatine göre; TR saati UTC+3).
+    # ScraperAPI ücretsiz planı ayda 1000 istek veriyor; 3 saatte bir x birkaç
+    # kaynak bu sınırın rahatça altında kalır. Sıklığı artırırsanız kotayı kontrol edin.
+    - cron: "0 */3 * * *"
+  workflow_dispatch: {}  # Actions sekmesinden manuel tetikleme için
 
+# price_history.json'u repoya geri commit'leyebilmek için yazma izni şart
 permissions:
   contents: write
 
@@ -27,6 +31,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: python price_tracker.py
 
       - name: Fiyat geçmişini repoya kaydet
