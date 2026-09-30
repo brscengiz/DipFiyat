@@ -12,10 +12,10 @@ Kullanım:
   python price_tracker.py                 -> tek seferlik kontrol
   (cron ile örn. her 3 saatte bir çalıştırılması önerilir)
 
-Not: Bu script, siteyi normal bir tarayıcı gibi ziyaret eder (requests + BeautifulSoup).
-SCRAPER_API_KEY ortam değişkeni tanımlıysa istekler ScraperAPI proxy'si üzerinden
-yapılır (veri merkezi IP engelini aşmak için). Site yapıları zaman zaman değişebilir;
-fiyat bulunamazsa script hatayı loglar ve diğer kaynaklara devam eder.
+Not: SCRAPER_API_KEY ortam değişkeni tanımlıysa istekler ScraperAPI proxy'si
+üzerinden yapılır (veri merkezi IP engelini aşmak için). Site yapıları zaman
+zaman değişebilir; fiyat bulunamazsa script hatayı loglar ve diğer kaynaklara
+devam eder.
 """
 
 import json
@@ -29,9 +29,6 @@ from urllib.parse import quote
 import requests
 from bs4 import BeautifulSoup
 
-# ScraperAPI gibi bir "scraping proxy" servisinin API key'i (opsiyonel).
-# Tanımlıysa istekler bu servis üzerinden yapılır (veri merkezi IP engelini aşmak için).
-# Tanımlı değilse normal doğrudan istek yapılır.
 SCRAPER_API_KEY = os.environ.get("SCRAPER_API_KEY", "")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +52,6 @@ HEADERS = {
     "Cache-Control": "max-age=0",
 }
 
-# "16.490,00 TL" veya "44.550 TL" gibi Türkçe fiyat formatlarını yakalar
 PRICE_REGEX = re.compile(r"(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL")
 
 
@@ -65,7 +61,6 @@ def log(msg: str) -> None:
 
 
 def parse_tl_to_float(raw: str) -> float:
-    """'16.490,00' -> 16490.00 ,  '44.550' -> 44550.0"""
     raw = raw.strip()
     if "," in raw:
         raw = raw.replace(".", "").replace(",", ".")
@@ -77,7 +72,6 @@ def parse_tl_to_float(raw: str) -> float:
 def fetch_html(url: str) -> str | None:
     try:
         if SCRAPER_API_KEY:
-            # ScraperAPI proxy'si üzerinden çek (veri merkezi IP engelini aşmak için).
             proxy_url = f"http://api.scraperapi.com/?api_key={SCRAPER_API_KEY}&url={quote(url, safe='')}"
             resp = requests.get(proxy_url, timeout=60)
         else:
@@ -90,7 +84,6 @@ def fetch_html(url: str) -> str | None:
 
 
 def extract_prices(html: str) -> list[float]:
-    """Sayfadaki tüm 'X.XXX,XX TL' benzeri fiyatları bulur."""
     matches = PRICE_REGEX.findall(html)
     prices = []
     for m in matches:
@@ -103,28 +96,27 @@ def extract_prices(html: str) -> list[float]:
     return prices
 
 
-def get_price_liste_min(url: str) -> float | None:
-    """Akakçe/Cimri gibi 'birden çok satıcı' gösteren sayfalarda en düşük fiyatı bulur."""
+def get_price_liste_min(url: str, min_gecerli: float = 0) -> float | None:
+    """Akakçe/Cimri gibi sayfalarda en düşük fiyatı bulur.
+    min_gecerli altındaki değerler (kargo bedeli, indirim rozeti vb.) elenir."""
     html = fetch_html(url)
     if not html:
         return None
-    prices = extract_prices(html)
+    prices = [p for p in extract_prices(html) if p >= min_gecerli]
     if not prices:
-        log(f"UYARI: {url} içinde fiyat bulunamadı.")
+        log(f"UYARI: {url} içinde geçerli aralıkta fiyat bulunamadı.")
         return None
     return min(prices)
 
 
-def get_price_tek_urun(url: str) -> float | None:
-    """
-    Tek bir ürün sayfasında ilk bulunan makul fiyatı döner.
-    """
+def get_price_tek_urun(url: str, min_gecerli: float = 0) -> float | None:
+    """Tek ürün sayfasında, min_gecerli üzerindeki ilk fiyatı döner."""
     html = fetch_html(url)
     if not html:
         return None
-    prices = extract_prices(html)
+    prices = [p for p in extract_prices(html) if p >= min_gecerli]
     if not prices:
-        log(f"UYARI: {url} içinde fiyat bulunamadı.")
+        log(f"UYARI: {url} içinde geçerli aralıkta fiyat bulunamadı.")
         return None
     return prices[0]
 
@@ -164,10 +156,13 @@ def send_telegram(bot_token: str, chat_id: str, text: str) -> None:
 
 
 def check_product(product: dict, history: dict) -> list[str]:
-    """Bir ürünü tüm kaynaklardan kontrol eder, gerekiyorsa bildirim metinleri döner."""
     product_id = product["id"]
     name = product["ad"]
     target = product.get("hedef_fiyat")
+
+    # Kargo bedeli/indirim rozeti gibi anlamsız küçük sayıları elemek için:
+    # hedef fiyat varsa onun 1/4'ünü, yoksa sabit 300 TL'yi alt sınır kabul et.
+    min_gecerli = (target / 4) if target else 300
 
     results = []  # (site, price)
     for kaynak in product.get("kaynaklar", []):
@@ -178,11 +173,11 @@ def check_product(product: dict, history: dict) -> list[str]:
         if not fetcher:
             log(f"UYARI: Bilinmeyen kaynak tipi '{tip}' ({site})")
             continue
-        price = fetcher(url)
+        price = fetcher(url, min_gecerli=min_gecerli)
         if price is not None:
             log(f"{name} - {site}: {price:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
             results.append((site, price, url))
-        time.sleep(1)  # siteye nazik davran
+        time.sleep(1)
 
     if not results:
         log(f"UYARI: {name} için hiçbir kaynaktan fiyat alınamadı.")
