@@ -14,6 +14,11 @@
       "hedef_fiyat": 12500,
       "kaynaklar": [
         {
+          "site": "vatan",
+          "tip": "tek_urun",
+          "url": "https://www.vatanbilgisayar.com/razer-blackshark-v3-pro-black.html"
+        },
+        {
           "site": "akakce",
           "tip": "liste_min",
           "url": "https://www.akakce.com/kulaklik/en-ucuz-razer-blackshark-v3-pro-7-1-usb-kablolu-kablosuz-kulak-ustu-oyuncu-kulakligi-fiyati,1168802361.html"
@@ -22,11 +27,6 @@
           "site": "cimri",
           "tip": "liste_min",
           "url": "https://www.cimri.com/kulaklik/en-ucuz-razer-blackshark-v3-pro-siyah-kulaklik-fiyatlari,2578210331"
-        },
-        {
-          "site": "tebilon",
-          "tip": "tek_urun",
-          "url": "https://www.tebilon.com/gaming-kulaklik/arama/?g=sT&f=n&a=razer+blackshark+v3+pro"
         }
       ]
     }
