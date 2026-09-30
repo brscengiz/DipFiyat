@@ -2,7 +2,7 @@
 """
 Fiyat Takip Botu
 -----------------
-config.json içindeki ürünleri, tanımlı kaynaklardan (Akakçe, Cimri, Tebilon, ...)
+config.json içindeki ürünleri, tanımlı kaynaklardan (Vatan, Akakçe, Cimri, ...)
 periyodik olarak çeker, en ucuz fiyatı bulur, geçmişle karşılaştırır ve:
   - fiyat tüm-zamanların dibine (yeni "dip fiyat") inerse
   - veya hedef fiyatın altına inerse
@@ -34,9 +34,18 @@ HISTORY_PATH = os.path.join(BASE_DIR, "price_history.json")
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
 
 # "16.490,00 TL" veya "44.550 TL" gibi Türkçe fiyat formatlarını yakalar
@@ -97,10 +106,7 @@ def get_price_liste_min(url: str) -> float | None:
 
 def get_price_tek_urun(url: str) -> float | None:
     """
-    Tek bir ürün sayfasında (örn. Tebilon ürün/arama sayfası) ilk bulunan
-    makul fiyatı döner. Arama sayfalarında birden fazla ürün olabileceği için
-    burada 'ilk fiyat' yaklaşımı kullanılıyor; spesifik ürün URL'i vermek
-    her zaman daha güvenilir sonuç verir.
+    Tek bir ürün sayfasında ilk bulunan makul fiyatı döner.
     """
     html = fetch_html(url)
     if not html:
