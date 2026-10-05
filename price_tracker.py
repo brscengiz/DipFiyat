@@ -2,7 +2,7 @@
 """
 Fiyat Takip Botu
 -----------------
-config.json içindeki ürünleri, tanımlı kaynaklardan (Vatan, Akakçe, Cimri, ...)
+config.json içindeki ürünleri, tanımlı kaynaklardan (Akakçe, Cimri, Vatan, ...)
 periyodik olarak çeker, en ucuz fiyatı bulur, geçmişle karşılaştırır ve:
   - fiyat tüm-zamanların dibine (yeni "dip fiyat") inerse
   - veya hedef fiyatın altına inerse
@@ -12,10 +12,11 @@ Kullanım:
   python price_tracker.py                 -> tek seferlik kontrol
   (cron ile örn. her 3 saatte bir çalıştırılması önerilir)
 
-Not: SCRAPER_API_KEY ortam değişkeni tanımlıysa istekler ScraperAPI proxy'si
-üzerinden yapılır (veri merkezi IP engelini aşmak için). Site yapıları zaman
-zaman değişebilir; fiyat bulunamazsa script hatayı loglar ve diğer kaynaklara
-devam eder.
+Not: Bu script, siteyi normal bir tarayıcı gibi ziyaret eder (requests + BeautifulSoup).
+SCRAPER_API_KEY ortam değişkeni tanımlıysa istekler ScraperAPI proxy'si üzerinden
+yapılır (veri merkezi IP engelini aşmak için). Fiyatlar hedef fiyata göre makul bir
+aralıkla (0.5x - 2.5x) filtrelenir; böylece sayfadaki alakasız 'benzer ürün'
+önerileri veya kargo/indirim rozetleri yanlışlıkla fiyat sanılmaz.
 """
 
 import json
@@ -96,25 +97,26 @@ def extract_prices(html: str) -> list[float]:
     return prices
 
 
-def get_price_liste_min(url: str, min_gecerli: float = 0) -> float | None:
-    """Akakçe/Cimri gibi sayfalarda en düşük fiyatı bulur.
-    min_gecerli altındaki değerler (kargo bedeli, indirim rozeti vb.) elenir."""
+def get_price_liste_min(url: str, min_gecerli: float = 0, max_gecerli: float = float("inf")) -> float | None:
+    """Akakçe/Cimri gibi 'birden çok satıcı' gösteren sayfalarda en düşük fiyatı bulur.
+    [min_gecerli, max_gecerli] aralığı dışındaki değerler (kargo bedeli, sayfadaki
+    alakasız 'benzer ürün' önerileri, indirim rozeti vb. yanlış eşleşmeler) elenir."""
     html = fetch_html(url)
     if not html:
         return None
-    prices = [p for p in extract_prices(html) if p >= min_gecerli]
+    prices = [p for p in extract_prices(html) if min_gecerli <= p <= max_gecerli]
     if not prices:
         log(f"UYARI: {url} içinde geçerli aralıkta fiyat bulunamadı.")
         return None
     return min(prices)
 
 
-def get_price_tek_urun(url: str, min_gecerli: float = 0) -> float | None:
-    """Tek ürün sayfasında, min_gecerli üzerindeki ilk fiyatı döner."""
+def get_price_tek_urun(url: str, min_gecerli: float = 0, max_gecerli: float = float("inf")) -> float | None:
+    """Tek bir ürün sayfasında, [min_gecerli, max_gecerli] aralığındaki ilk fiyatı döner."""
     html = fetch_html(url)
     if not html:
         return None
-    prices = [p for p in extract_prices(html) if p >= min_gecerli]
+    prices = [p for p in extract_prices(html) if min_gecerli <= p <= max_gecerli]
     if not prices:
         log(f"UYARI: {url} içinde geçerli aralıkta fiyat bulunamadı.")
         return None
@@ -160,9 +162,10 @@ def check_product(product: dict, history: dict) -> list[str]:
     name = product["ad"]
     target = product.get("hedef_fiyat")
 
-    # Kargo bedeli/indirim rozeti gibi anlamsız küçük sayıları elemek için:
-    # hedef fiyat varsa onun 1/4'ünü, yoksa sabit 300 TL'yi alt sınır kabul et.
-    min_gecerli = (target / 4) if target else 300
+    # Hedef fiyatın %50'si - %250'si dışındaki sayılar (kargo bedeli, alakasız
+    # 'benzer ürün' önerileri vb.) geçersiz sayılır.
+    min_gecerli = (target * 0.5) if target else 300
+    max_gecerli = (target * 2.5) if target else float("inf")
 
     results = []  # (site, price)
     for kaynak in product.get("kaynaklar", []):
@@ -173,7 +176,7 @@ def check_product(product: dict, history: dict) -> list[str]:
         if not fetcher:
             log(f"UYARI: Bilinmeyen kaynak tipi '{tip}' ({site})")
             continue
-        price = fetcher(url, min_gecerli=min_gecerli)
+        price = fetcher(url, min_gecerli=min_gecerli, max_gecerli=max_gecerli)
         if price is not None:
             log(f"{name} - {site}: {price:,.2f} TL".replace(",", "X").replace(".", ",").replace("X", "."))
             results.append((site, price, url))
